@@ -12,16 +12,17 @@ DANGER_COLOR = "#EF4444"    # Coral Red
 BG_COLOR = "#F8FAFC"
 GRID_COLOR = "#E2E8F0"
 
-def apply_chart_theme(fig):
+def apply_chart_theme(fig, height=310):
     """
     Applies unified high-end styling to a Plotly figure.
     """
     fig.update_layout(
         template="plotly_white",
         font=dict(family="Outfit, sans-serif", size=12),
-        margin=dict(l=40, r=40, t=50, b=40),
+        margin=dict(l=40, r=40, t=45, b=30),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
+        height=height,
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -261,8 +262,8 @@ def plot_regional_map(df):
             coastlinecolor="#CBD5E1"
         ),
         coloraxis_colorbar=dict(title="Sales ($)"),
-        margin=dict(l=0, r=0, t=40, b=0),
-        height=400
+        margin=dict(l=0, r=0, t=35, b=0),
+        height=310
     )
     
     return fig

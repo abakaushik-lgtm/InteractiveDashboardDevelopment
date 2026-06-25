@@ -298,6 +298,7 @@ else:
     )
     
     # ----------------- TABS SETUP -----------------
+    # ==================== TABS SETUP ====================
     tab_overview, tab_products, tab_geography, tab_customers, tab_profiler = st.tabs([
         "📈 Executive Overview",
         "🏷️ Product & Category Performance",
@@ -358,50 +359,35 @@ else:
         ]
         render_kpi_grid(cards_data)
         
-        # Primary Sales Trend
-        col_trend, col_filters_info = st.columns([4, 1])
-        with col_trend:
-            freq_select = st.segmented_control("Trend Time Granularity", ["Day", "Month", "Year"], default="Month")
-            trend_fig = viz.plot_revenue_trend(filtered_df, freq_select)
+        # Primary Sales Trend & Category Analysis (Side-by-Side to avoid vertical scrolling)
+        col_left, col_right = st.columns([3, 2])
+        
+        with col_left:
+            # Compact granularity selector and line plot
+            c1, c2 = st.columns([2, 1])
+            with c2:
+                freq_select = st.segmented_control("Granularity", ["Day", "Month", "Year"], default="Month", label_visibility="collapsed")
+            with c1:
+                st.markdown("<p style='font-size:0.95rem; font-weight:600; margin-top:5px; color:#475569;'>Revenue & Profit Over Time</p>", unsafe_allow_html=True)
+            trend_fig = viz.plot_revenue_trend(filtered_df, freq_select if freq_select else "Month")
             st.plotly_chart(trend_fig, use_container_width=True)
             
-        with col_filters_info:
-            st.markdown("#### ⚡ Active Segment Summary")
-            if len(filtered_df) == 0:
-                st.info("No records in selection.")
+        with col_right:
+            cat_view = st.segmented_control("Category Breakdown", ["Revenue Share", "Financials"], default="Revenue Share")
+            if cat_view == "Revenue Share":
+                st.plotly_chart(viz.plot_category_distribution(filtered_df), use_container_width=True)
             else:
-                st.markdown(f"**Date window:**<br>`{start_date.strftime('%Y-%m-%d')}` to `{end_date.strftime('%Y-%m-%d')}`", unsafe_allow_html=True)
-                st.markdown(f"**Transactions:** `{len(filtered_df):,}`")
-                
-                # Targets check
-                total_target = filtered_df["Target"].sum()
-                target_pct = (curr_rev / total_target * 100) if total_target > 0 else 0
-                
-                # Render Target achievements
-                st.markdown(f"**Sales Target:** {format_currency(total_target)}")
-                st.markdown(f"**Target Progress:** **{target_pct:.1f}%**")
-                st.progress(min(1.0, max(0.0, target_pct / 100)))
-                
-                st.markdown("---")
-                # Top performance summary bullet points
-                top_cat = filtered_df.groupby("Category")["Sales"].sum().idxmax() if len(filtered_df) > 0 else "N/A"
-                top_reg = filtered_df.groupby("Region")["Sales"].sum().idxmax() if len(filtered_df) > 0 else "N/A"
-                st.markdown(f"🏆 **Top Region:** {top_reg}")
-                st.markdown(f"📦 **Top Category:** {top_cat}")
-                
-        # Category Breakdown Charts
-        col_doughnut, col_cat_bar = st.columns(2)
-        with col_doughnut:
-            st.plotly_chart(viz.plot_category_distribution(filtered_df), use_container_width=True)
-        with col_cat_bar:
-            st.plotly_chart(viz.plot_category_profitability(filtered_df), use_container_width=True)
+                st.plotly_chart(viz.plot_category_profitability(filtered_df), use_container_width=True)
 
     # ==================== TAB 2: PRODUCT & CATEGORY PERFORMANCE ====================
     with tab_products:
-        col_rank_select, col_empty = st.columns([1, 3])
+        col_rank_select, col_empty = st.columns([2, 3])
         with col_rank_select:
-            top_n = st.number_input("Products to Rank", min_value=3, max_value=25, value=10)
-            metric_sort = st.selectbox("Rank By", ["Sales", "Profit"])
+            r1, r2 = st.columns(2)
+            with r1:
+                top_n = st.number_input("Products to Rank", min_value=3, max_value=25, value=8, step=1)
+            with r2:
+                metric_sort = st.selectbox("Rank By", ["Sales", "Profit"])
             
         col_rank_chart, col_rank_table = st.columns([3, 2])
         with col_rank_chart:
@@ -409,7 +395,7 @@ else:
             st.plotly_chart(prod_fig, use_container_width=True)
             
         with col_rank_table:
-            st.markdown("#### 📊 Product Performance Rankings")
+            st.markdown("<p style='font-size:0.95rem; font-weight:600; color:#475569;'>Performance Details Table</p>", unsafe_allow_html=True)
             prod_metrics = filtered_df.groupby("Product").agg({
                 "Sales": "sum",
                 "Profit": "sum",
@@ -420,7 +406,6 @@ else:
             prod_metrics["Margin %"] = (prod_metrics["Profit"] / prod_metrics["Sales"] * 100).round(1)
             prod_metrics["Target Achieved %"] = (prod_metrics["Sales"] / prod_metrics["Target"] * 100).round(1)
             
-            # Format display
             display_table = prod_metrics.sort_values(metric_sort, ascending=False).reset_index(drop=True)
             display_table["Sales"] = display_table["Sales"].map(format_currency)
             display_table["Profit"] = display_table["Profit"].map(format_currency)
@@ -429,58 +414,108 @@ else:
             st.dataframe(
                 display_table[["Product", "Sales", "Profit", "Margin %", "Target Achieved %", "Orders"]],
                 use_container_width=True,
-                height=400,
+                height=265,
                 hide_index=True
             )
 
     # ==================== TAB 3: GEOGRAPHIC INSIGHTS ====================
     with tab_geography:
-        st.plotly_chart(viz.plot_regional_map(filtered_df), use_container_width=True)
+        col_map, col_ranking = st.columns([3, 2])
         
-        col_reg_rank, col_reg_insights = st.columns([3, 2])
-        with col_reg_rank:
-            st.plotly_chart(viz.plot_regional_ranking(filtered_df), use_container_width=True)
+        with col_map:
+            st.plotly_chart(viz.plot_regional_map(filtered_df), use_container_width=True)
             
-        with col_reg_insights:
-            st.markdown("#### 🌎 Regional Revenue Highlights")
-            reg_agg = filtered_df.groupby("Region").agg({
-                "Sales": "sum",
-                "Profit": "sum",
-                "CustomerID": "nunique"
-            }).reset_index()
-            reg_agg["Margin %"] = (reg_agg["Profit"] / reg_agg["Sales"] * 100).round(1)
+        with col_ranking:
+            # Segmented selector to choose between visual ranking and key regional cards
+            geo_view = st.segmented_control("Geography Insights", ["Regional Ranks", "Quick Metrics"], default="Regional Ranks")
             
-            for idx, row in reg_agg.sort_values("Sales", ascending=False).iterrows():
-                st.markdown(
-                    f"""
-                    <div class="metric-box">
-                        <strong>{row['Region']}</strong><br>
-                        Sales: {format_currency(row['Sales'])} | 
-                        Profit: {format_currency(row['Profit'])} | 
-                        Margin: {row['Margin %']}% | 
-                        Customers: {row['CustomerID']:,}
+            if geo_view == "Regional Ranks":
+                st.plotly_chart(viz.plot_regional_ranking(filtered_df), use_container_width=True)
+            else:
+                reg_agg = filtered_df.groupby("Region").agg({
+                    "Sales": "sum",
+                    "Profit": "sum",
+                    "CustomerID": "nunique"
+                }).reset_index()
+                reg_agg["Margin %"] = (reg_agg["Profit"] / reg_agg["Sales"] * 100).round(1)
+                
+                # Render scrollable region cards container to stay compact
+                metrics_container_html = "<div style='max-height: 270px; overflow-y: auto; padding-right: 5px;'>"
+                for idx, row in reg_agg.sort_values("Sales", ascending=False).iterrows():
+                    metrics_container_html += f"""
+                    <div style='background-color: #F8FAFC; border-radius: 8px; padding: 10px 14px; border-left: 4px solid #3B82F6; margin-bottom: 8px; font-family: Outfit, sans-serif;'>
+                        <div style='display: flex; justify-content: space-between; font-weight: 600; color: #1E293B;'>
+                            <span>{row['Region']}</span>
+                            <span>{format_currency(row['Sales'])}</span>
+                        </div>
+                        <div style='display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748B; margin-top: 4px;'>
+                            <span>Profit: {format_currency(row['Profit'])} ({row['Margin %']}%)</span>
+                            <span>Customers: {row['CustomerID']:,}</span>
+                        </div>
                     </div>
-                    """, 
-                    unsafe_allow_html=True
-                )
+                    """
+                metrics_container_html += "</div>"
+                st.markdown(metrics_container_html, unsafe_allow_html=True)
 
     # ==================== TAB 4: CUSTOMER & PROFITABILITY ====================
     with tab_customers:
-        col_funnel, col_margin_trend = st.columns(2)
-        with col_funnel:
-            st.plotly_chart(viz.plot_customer_funnel(filtered_df), use_container_width=True)
-        with col_margin_trend:
-            st.plotly_chart(viz.plot_margin_breakdown(filtered_df), use_container_width=True)
-            
-        st.markdown("---")
-        st.markdown("### 📊 Cohort Retention Analytics")
-        st.markdown("Cohort retention analyzes the percentage of customers who return to buy in subsequent months after their first purchase month.")
+        cust_subtab1, cust_subtab2 = st.tabs(["👥 Loyalty & Retention", "⚖️ Margin Trends"])
         
-        cohort_fig = viz.plot_cohort_heatmap(filtered_df)
-        if cohort_fig is not None:
-            st.plotly_chart(cohort_fig, use_container_width=True)
-        else:
-            st.warning("Customer ID and Date columns are required for cohort analysis. Please upload a dataset with Customer IDs or map them correctly.")
+        with cust_subtab1:
+            col_funnel, col_heatmap = st.columns([2, 3])
+            with col_funnel:
+                st.plotly_chart(viz.plot_customer_funnel(filtered_df), use_container_width=True)
+            with col_heatmap:
+                cohort_fig = viz.plot_cohort_heatmap(filtered_df)
+                if cohort_fig is not None:
+                    st.plotly_chart(cohort_fig, use_container_width=True)
+                else:
+                    st.warning("Customer IDs are missing.")
+                    
+        with cust_subtab2:
+            col_margin_chart, col_targets_info = st.columns([3, 2])
+            with col_margin_chart:
+                st.plotly_chart(viz.plot_margin_breakdown(filtered_df), use_container_width=True)
+            with col_targets_info:
+                st.markdown("<p style='font-size:0.95rem; font-weight:600; color:#475569; margin-bottom: 10px;'>Target vs Actual Performance</p>", unsafe_allow_html=True)
+                
+                # Targets comparison summary
+                tot_target = filtered_df["Target"].sum() if "Target" in filtered_df.columns else 0
+                tot_sales = filtered_df["Sales"].sum()
+                tot_profit = filtered_df["Profit"].sum()
+                tot_cost = filtered_df["Cost"].sum()
+                
+                target_gap = tot_sales - tot_target
+                target_color = "#10B981" if target_gap >= 0 else "#EF4444"
+                target_sign = "+" if target_gap >= 0 else ""
+                
+                st.markdown(
+                    f"""
+                    <div style='background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; font-family: Outfit, sans-serif;'>
+                        <div style='display: flex; justify-content: space-between; margin-bottom: 12px;'>
+                            <span style='color: #64748B;'>Cumulative Sales</span>
+                            <span style='font-weight: 600; color: #0F172A;'>{format_currency(tot_sales)}</span>
+                        </div>
+                        <div style='display: flex; justify-content: space-between; margin-bottom: 12px;'>
+                            <span style='color: #64748B;'>Sales Target Goal</span>
+                            <span style='font-weight: 600; color: #0F172A;'>{format_currency(tot_target)}</span>
+                        </div>
+                        <div style='display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid #E2E8F0; padding-bottom: 10px;'>
+                            <span style='color: #64748B;'>Goal Variance</span>
+                            <span style='font-weight: 700; color: {target_color};'>{target_sign}{format_currency(target_gap)}</span>
+                        </div>
+                        <div style='display: flex; justify-content: space-between; margin-bottom: 8px;'>
+                            <span style='color: #64748B;'>Total Cost Expense</span>
+                            <span style='font-weight: 600; color: #0F172A;'>{format_currency(tot_cost)}</span>
+                        </div>
+                        <div style='display: flex; justify-content: space-between;'>
+                            <span style='color: #64748B;'>Total Net Profit</span>
+                            <span style='font-weight: 600; color: #10B981;'>{format_currency(tot_profit)}</span>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
     # ==================== TAB 5: DATA PROFILING MODULE ====================
     with tab_profiler:
@@ -488,61 +523,53 @@ else:
         cust_col_arg = "CustomerID" if "CustomerID" in filtered_df.columns else None
         profile_results = profile_data(filtered_df, sales_col="Sales", profit_col="Profit", customers_col=cust_col_arg)
         
-        # Render profile KPI metrics
-        st.markdown("### 🔍 Dataset Profile Summary")
-        
+        # Profile KPI Metrics
         col_prof_1, col_prof_2, col_prof_3, col_prof_4, col_prof_5 = st.columns(5)
         with col_prof_1:
-            st.metric("Total Records Analyzed", f"{profile_results['total_records']:,}")
+            st.metric("Total Records", f"{profile_results['total_records']:,}")
         with col_prof_2:
             st.metric("Total Columns", f"{profile_results['total_columns']:,}")
         with col_prof_3:
-            st.metric("Missing Value Cells", f"{profile_results['missing_cells']:,} ({profile_results['missing_pct']}%)")
+            st.metric("Missing Cells", f"{profile_results['missing_cells']:,} ({profile_results['missing_pct']}%)")
         with col_prof_4:
             st.metric("Duplicate Rows", f"{profile_results['duplicate_rows']:,} ({profile_results['duplicate_pct']}%)")
         with col_prof_5:
-            # Color indicator depending on quality score
             score = profile_results['quality_score']
-            if score >= 90:
-                color_emoji = "🟢"
-            elif score >= 70:
-                color_emoji = "🟡"
-            else:
-                color_emoji = "🔴"
+            color_emoji = "🟢" if score >= 90 else "🟡" if score >= 70 else "🔴"
             st.metric("Data Quality Score", f"{color_emoji} {score}%")
             
-        st.markdown("---")
+        st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
         
-        col_details_table, col_data_preview = st.columns([1, 1])
+        col_details_table, col_data_preview = st.columns([2, 3])
         with col_details_table:
-            st.markdown("#### 📂 Column Schema & Metadata")
-            st.dataframe(profile_results["type_summary"], use_container_width=True, hide_index=True)
+            st.markdown("<p style='font-size:0.95rem; font-weight:600; color:#475569;'>Column Schema & Metadata</p>", unsafe_allow_html=True)
+            st.dataframe(profile_results["type_summary"], use_container_width=True, height=210, hide_index=True)
             
         with col_data_preview:
-            st.markdown("#### 👁️ Raw Data Preview (First 100 rows)")
-            st.dataframe(filtered_df.head(100), use_container_width=True, height=350)
+            st.markdown("<p style='font-size:0.95rem; font-weight:600; color:#475569;'>Raw Transaction Preview</p>", unsafe_allow_html=True)
+            st.dataframe(filtered_df.head(100), use_container_width=True, height=170)
             
-            # Download Filtered Data Option
-            csv_buffer = io.StringIO()
-            filtered_df.to_csv(csv_buffer, index=False)
-            csv_str = csv_buffer.getvalue()
-            
-            st.download_button(
-                label="📥 Download Filtered Dataset (CSV)",
-                data=csv_str,
-                file_name="filtered_bi_dataset.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-            
-            # Download Sample Mock Data Option (if they want the pure base dataset to look at it)
-            if st.session_state["data_source"] == "Demo System Dataset":
-                base_csv = io.StringIO()
-                st.session_state["raw_df"].to_csv(base_csv, index=False)
+            # Download Row controls
+            d1, d2 = st.columns(2)
+            with d1:
+                csv_buffer = io.StringIO()
+                filtered_df.to_csv(csv_buffer, index=False)
                 st.download_button(
-                    label="📥 Download Sample BI Dataset (CSV)",
-                    data=base_csv.getvalue(),
-                    file_name="sample_bi_dataset.csv",
+                    label="📥 Download Filtered (CSV)",
+                    data=csv_buffer.getvalue(),
+                    file_name="filtered_bi_dataset.csv",
                     mime="text/csv",
                     use_container_width=True
                 )
+            with d2:
+                if st.session_state["data_source"] == "Demo System Dataset":
+                    base_csv = io.StringIO()
+                    st.session_state["raw_df"].to_csv(base_csv, index=False)
+                    st.download_button(
+                        label="📥 Download Sample BI (CSV)",
+                        data=base_csv.getvalue(),
+                        file_name="sample_bi_dataset.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+

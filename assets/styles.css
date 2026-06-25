@@ -162,3 +162,25 @@
         border-left-color: #60A5FA;
     }
 }
+
+/* One Page Application Constraints */
+html, body, [data-testid="stAppViewContainer"] {
+    overflow: hidden !important;
+    height: 100vh !important;
+}
+
+/* Lock Streamlit main container to viewport and remove scrolling */
+[data-testid="stMainBlockContainer"] {
+    max-height: 100vh !important;
+    overflow-y: hidden !important;
+    padding-top: 1.5rem !important;
+    padding-bottom: 1rem !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+}
+
+/* Make sure inner scrollable elements like tables can scroll locally if needed */
+.stDataFrame div {
+    overflow: auto;
+}
+
